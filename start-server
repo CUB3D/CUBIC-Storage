@@ -2,4 +2,4 @@
 
 docker build -t cubic_storage .
 # Remove -d for debugging
-docker run -d -p 8093:8080 -v storage_root:/home/rust/storage_root cubic_storage
+docker run -d -p 8093:8081 -v storage_root:/home/rust/storage_root cubic_storage

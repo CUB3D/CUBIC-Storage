@@ -48,16 +48,17 @@ fn bucket_verify(
 
             let mut sha = Sha1::new();
 
-            let mut file = File::open(path).unwrap();
+            let mut blobFile = File::open(path).unwrap();
             let mut content = String::new();
-            file.read_to_string(&mut content);
+            blobFile.read_to_string(&mut content);
 
             sha.update(content.as_bytes());
 
             let hex_string = sha.digest().to_string();
+            let path_string = path.to_str().unwrap().replace(&format!("storage_root/{}/", &file.name), "");
 
             blobs.push(Blob {
-                blob_name: path.to_str().unwrap().to_string(),
+                blob_name: path_string,
                 blob_sha1: hex_string
             })
         }

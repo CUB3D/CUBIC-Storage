@@ -12,6 +12,9 @@ actix-web = "*"
 actix-web-actors = "*"
 actix-multipart = "*"
 
+walkdir = "*"
+sha1 = "*"
+
 json = "*"
 serde = "*"
 serde_derive = "*"

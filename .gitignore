@@ -98,3 +98,5 @@ fabric.properties
 Test.sqlite3
 .idea/
 .env
+
+storage_root

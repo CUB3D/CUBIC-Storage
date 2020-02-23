@@ -160,7 +160,7 @@ fn main() -> std::io::Result<()> {
             ))
             .service(web::resource("/api/bucket/{name}/verify").to(bucket_verify))
     })
-        .bind("0.0.0.0:8081").unwrap()
+        .bind("0.0.0.0:8080").unwrap()
         .start();
 
     system.run()

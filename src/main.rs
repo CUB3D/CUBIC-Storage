@@ -163,8 +163,6 @@ async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
 
-//    let system = actix::System::new("storage");
-
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
@@ -187,6 +185,4 @@ async fn main() -> std::io::Result<()> {
         .bind("0.0.0.0:8080").unwrap()
         .run()
         .await
-
-//    system.run()
 }

@@ -100,3 +100,4 @@ Test.sqlite3
 .env
 
 storage_root
+*.iml

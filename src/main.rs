@@ -1,15 +1,15 @@
 use actix::*;
 
-use actix_web::{HttpResponse, web, HttpServer, App, Error as AWError, middleware};
-use serde::{Deserialize, Serialize};
-use std::path::Path;
-use std::fs::{File, create_dir};
-use std::io::{Read, Write};
-use walkdir::WalkDir;
-use sha1::Sha1;
 use actix_multipart::Multipart;
+use actix_web::{middleware, web, App, Error as AWError, HttpResponse, HttpServer};
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
+use sha1::Sha1;
+use std::fs::{create_dir, File};
+use std::io::{Read, Write};
+use std::path::Path;
 use tokio::prelude::*;
+use walkdir::WalkDir;
 
 extern crate futures;
 
@@ -34,15 +34,16 @@ struct Blob {
 
 #[derive(Serialize)]
 struct Bucket {
-    blobs: Vec<Blob>
+    blobs: Vec<Blob>,
 }
 
-async fn bucket_verify(
-    file: web::Path<BucketLocation>
-) -> Result<HttpResponse, AWError> {
+async fn bucket_verify(file: web::Path<BucketLocation>) -> Result<HttpResponse, AWError> {
     let mut blobs = Vec::new();
 
-    for e in WalkDir::new(format!("storage_root/{}/", &file.name)).into_iter().filter_map(|e| e.ok()) {
+    for e in WalkDir::new(format!("storage_root/{}/", &file.name))
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if e.metadata().unwrap().is_file() {
             println!("{}", e.path().display());
             let path = e.path();
@@ -56,18 +57,19 @@ async fn bucket_verify(
             sha.update(content.as_bytes());
 
             let hex_string = sha.digest().to_string();
-            let path_string = path.to_str().unwrap().replace(&format!("storage_root/{}/", &file.name), "");
+            let path_string = path
+                .to_str()
+                .unwrap()
+                .replace(&format!("storage_root/{}/", &file.name), "");
 
             blobs.push(Blob {
                 blob_name: path_string,
-                blob_sha1: hex_string
+                blob_sha1: hex_string,
             })
         }
     }
 
-    Ok(HttpResponse::Ok().json(Bucket {
-        blobs
-    }))
+    Ok(HttpResponse::Ok().json(Bucket { blobs }))
 }
 
 #[derive(Deserialize)]
@@ -75,10 +77,7 @@ struct BucketLocation {
     name: String,
 }
 
-async fn bucket_create(
-    file: web::Path<BucketLocation>
-) -> Result<HttpResponse, AWError> {
-
+async fn bucket_create(file: web::Path<BucketLocation>) -> Result<HttpResponse, AWError> {
     let path_str = format!("storage_root/{}", &file.name);
     create_dir(path_str);
 
@@ -87,24 +86,22 @@ async fn bucket_create(
 
 async fn bucket_upload(
     file: web::Path<FileLocation>,
-    mut data: Multipart
+    mut data: Multipart,
 ) -> Result<HttpResponse, AWError> {
     let path_str = format!("storage_root/{}/{}", &file.bucket_name, &file.file_name);
 
-    let mut file = web::block(|| File::create(path_str))
-        .await
-        .unwrap();
-//    if let Ok(mut file) = file {
-//        data.concat2().then(|bytes| {
-//            web::block(move || {
-//                if let Ok(bytes) = bytes {
-//                    file.write_all(&bytes).expect("Unable to save file")
-//                }
-//            }).from_err()
-//        })
-//    } else {
-//        HttpResponse::BadRequest().finish()
-//    }
+    let mut file = web::block(|| File::create(path_str)).await.unwrap();
+    //    if let Ok(mut file) = file {
+    //        data.concat2().then(|bytes| {
+    //            web::block(move || {
+    //                if let Ok(bytes) = bytes {
+    //                    file.write_all(&bytes).expect("Unable to save file")
+    //                }
+    //            }).from_err()
+    //        })
+    //    } else {
+    //        HttpResponse::BadRequest().finish()
+    //    }
 
     while let Some(item) = data.next().await {
         let mut field = item.expect("Couldn't read item");
@@ -117,29 +114,26 @@ async fn bucket_upload(
 
     return Ok(HttpResponse::Ok().finish());
 
-//    data.concat2()
-//        .then(|bytes|
-//            match bytes {
-//                Ok(res) => {
-//                    file.expect("Unable to open file").write_all(&res).expect("Unable to save file");
-//                    HttpResponse::Ok().finish()
-//                },
-//                Err(reason) => HttpResponse::InternalServerError().body(format!("{}", reason))
-//            }
-//        )
+    //    data.concat2()
+    //        .then(|bytes|
+    //            match bytes {
+    //                Ok(res) => {
+    //                    file.expect("Unable to open file").write_all(&res).expect("Unable to save file");
+    //                    HttpResponse::Ok().finish()
+    //                },
+    //                Err(reason) => HttpResponse::InternalServerError().body(format!("{}", reason))
+    //            }
+    //        )
 }
 
 #[derive(Deserialize)]
 struct FileLocation {
     bucket_name: String,
-    file_name: String
+    file_name: String,
 }
 
-async fn get_file(
-    file: web::Path<FileLocation>
-) -> Result<HttpResponse, AWError> {
-
-    let path_str = format!("storage_root/{}/{}", &file.bucket_name,&file.file_name);
+async fn get_file(file: web::Path<FileLocation>) -> Result<HttpResponse, AWError> {
+    let path_str = format!("storage_root/{}/{}", &file.bucket_name, &file.file_name);
 
     let path = Path::new(&path_str);
     let file = File::open(path);
@@ -166,23 +160,17 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
-            .service(web::resource("/").route(
-                web::get().to(root_handler)
-            ))
-            .service(web::resource("/{bucket_name}/{file_name}").route(
-                web::get().to(get_file)
-            ))
-            .service(web::resource("/api/bucket/{name}/create").route(
-                web::get().to(bucket_create)
-            ))
-            .service(web::resource("/api/bucket/{bucket_name}/{file_name}/upload").route(
-                web::put().to(bucket_upload)
-            ))
-            .service(web::resource("/api/bucket/{name}/verify").route(
-                web::get().to(bucket_verify)
-            ))
-        })
-        .bind("0.0.0.0:8080").unwrap()
-        .run()
-        .await
+            .service(web::resource("/").route(web::get().to(root_handler)))
+            .service(web::resource("/{bucket_name}/{file_name}").route(web::get().to(get_file)))
+            .service(web::resource("/api/bucket/{name}/create").route(web::get().to(bucket_create)))
+            .service(
+                web::resource("/api/bucket/{bucket_name}/{file_name}/upload")
+                    .route(web::put().to(bucket_upload)),
+            )
+            .service(web::resource("/api/bucket/{name}/verify").route(web::get().to(bucket_verify)))
+    })
+    .bind("0.0.0.0:8080")
+    .unwrap()
+    .run()
+    .await
 }

@@ -8,10 +8,8 @@ use sha1::Sha1;
 use std::fs::{create_dir, File};
 use std::io::{Read, Write};
 use std::path::Path;
-use tokio::prelude::*;
 use walkdir::WalkDir;
 
-extern crate futures;
 
 //fn walk_bucket(name: String) -> Vec<&'static Path> {
 //    let mut paths = Vec::new();
@@ -152,7 +150,7 @@ async fn root_handler() -> Result<HttpResponse, AWError> {
     Ok(HttpResponse::Ok().body("Success"))
 }
 
-#[tokio::main]
+#[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();

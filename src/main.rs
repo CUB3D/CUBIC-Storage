@@ -1,5 +1,3 @@
-use actix::*;
-
 use actix_multipart::Multipart;
 use actix_web::{middleware, web, App, Error as AWError, HttpResponse, HttpServer};
 use futures::StreamExt;
@@ -50,7 +48,7 @@ async fn bucket_verify(file: web::Path<BucketLocation>) -> Result<HttpResponse, 
 
             let mut blob_file = File::open(path).unwrap();
             let mut content = String::new();
-            blob_file.read_to_string(&mut content);
+            blob_file.read_to_string(&mut content).expect("Failed to read file");
 
             sha.update(content.as_bytes());
 
@@ -77,7 +75,7 @@ struct BucketLocation {
 
 async fn bucket_create(file: web::Path<BucketLocation>) -> Result<HttpResponse, AWError> {
     let path_str = format!("storage_root/{}", &file.name);
-    create_dir(path_str);
+    create_dir(path_str).expect("Unable to create directory");
 
     Ok(HttpResponse::Ok().finish())
 }

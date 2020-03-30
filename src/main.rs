@@ -8,7 +8,6 @@ use std::io::{Read, Write};
 use std::path::Path;
 use walkdir::WalkDir;
 
-
 //fn walk_bucket(name: String) -> Vec<&'static Path> {
 //    let mut paths = Vec::new();
 //
@@ -48,7 +47,9 @@ async fn bucket_verify(file: web::Path<BucketLocation>) -> Result<HttpResponse, 
 
             let mut blob_file = File::open(path).unwrap();
             let mut content = String::new();
-            blob_file.read_to_string(&mut content).expect("Failed to read file");
+            blob_file
+                .read_to_string(&mut content)
+                .expect("Failed to read file");
 
             sha.update(content.as_bytes());
 

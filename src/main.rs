@@ -157,7 +157,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
-            .service(web::resource("/").route(web::get().to(root_handler)))
+            .service(web::resource("/").to(root_handler))
             .service(web::resource("/{bucket_name}/{file_name}").route(web::get().to(get_file)))
             .service(web::resource("/api/bucket/{name}/create").route(web::get().to(bucket_create)))
             .service(

@@ -136,10 +136,12 @@ async fn get_file(file: web::Path<FileLocation>) -> Result<HttpResponse, AWError
     let file = File::open(path);
 
     if let Ok(mut file) = file {
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).unwrap();
 
-        Ok(HttpResponse::Ok().body(contents))
+        let mut content: Vec<u8> = Vec::new();
+        file.read_to_end(&mut content)
+            .expect("Unable to read entire blob");
+
+        Ok(HttpResponse::Ok().body(content))
     } else {
         Ok(HttpResponse::NotFound().finish())
     }

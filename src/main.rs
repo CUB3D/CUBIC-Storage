@@ -13,6 +13,14 @@ use tokio::prelude::*;
 
 extern crate futures;
 
+//TODO: bigs todos
+// Add dotenv for config
+// Add web ui for management
+// Add metadata to buckets
+// add system for securing buckets
+// add apis for getting state of buckets
+
+
 //fn walk_bucket(name: String) -> Vec<&'static Path> {
 //    let mut paths = Vec::new();
 //

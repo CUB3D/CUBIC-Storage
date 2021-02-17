@@ -1,0 +1,8 @@
+version: '3'
+services:
+  storage:
+    container_name: Storage
+    build: .
+    ports:
+      - "8093:8080"
+    restart: unless-stopped

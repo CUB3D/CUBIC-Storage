@@ -1,9 +1,8 @@
+use crate::settings::AppSettings;
+use actix_web::web::Data;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
-use actix_web::web::Data;
-use crate::settings::AppSettings;
-
 
 pub struct PathExists;
 pub struct PathDoesntExist;
@@ -34,11 +33,8 @@ pub struct PathManager {
 
 impl PathManager {
     pub fn new(settings: Data<AppSettings>) -> Self {
-        Self {
-            settings
-        }
+        Self { settings }
     }
-
 
     fn get_root(&self) -> PathBuf {
         PathBuf::from(&self.settings.storage_root)
@@ -54,16 +50,16 @@ impl PathManager {
         for comp in path.components() {
             match comp {
                 Component::Prefix(_) =>
-                /* Ignored, drive/share on windows is defined by our root */
+                    /* Ignored, drive/share on windows is defined by our root */
                     {}
                 Component::RootDir =>
-                /*Ignored, we always start from *our* root*/
+                    /*Ignored, we always start from *our* root*/
                     {}
                 Component::CurDir =>
-                /*Do nothing, we are always in current dir*/
+                    /*Do nothing, we are always in current dir*/
                     {}
                 Component::ParentDir =>
-                /* Ignore, we can't go up a dir */
+                    /* Ignore, we can't go up a dir */
                     {}
                 Component::Normal(path) => {
                     target = target.join(path);
@@ -76,7 +72,6 @@ impl PathManager {
             }
         }
 
-
         // Safety check, ALL paths MUST be under the root dir
         assert!(target.starts_with(root.as_os_str()));
 
@@ -88,7 +83,7 @@ impl PathManager {
     /// - Point to a new, non existent, bucket
     /// - Hold all the assumptions of [Self::safe_join]
     pub fn create_bucket(&self, bucket_name: &Path) -> Option<BucketPath<PathDoesntExist>> {
-        let path = self.safe_join(&self.get_root(), &bucket_name)?;
+        let path = self.safe_join(&self.get_root(), bucket_name)?;
 
         // End result must *not* exist
         if path.exists() {
@@ -103,7 +98,7 @@ impl PathManager {
     /// - Point to a valid, existing bucket (note that this bucket could be modified in between this call and its use, check for TOCTOU)
     /// - Hold all the assumptions of [Self::safe_join]
     pub fn get_bucket(&self, bucket_name: &Path) -> Option<BucketPath<PathExists>> {
-        let path = self.safe_join(&self.get_root(), &bucket_name)?;
+        let path = self.safe_join(&self.get_root(), bucket_name)?;
 
         // End result must exist
         if !path.exists() {
@@ -117,8 +112,12 @@ impl PathManager {
     /// This returned path can be assumed to:
     /// - Point to a non existent, file, within a valid bucket
     /// - Hold all the assumptions of [Self::safe_join]
-    pub fn create_bucket_file(&self, bucket: &BucketPath<PathExists>, file: &Path) -> Option<BlobPath<PathDoesntExist>> {
-        let path = self.safe_join(&*bucket, file)?;
+    pub fn create_bucket_file(
+        &self,
+        bucket: &BucketPath<PathExists>,
+        file: &Path,
+    ) -> Option<BlobPath<PathDoesntExist>> {
+        let path = self.safe_join(bucket, file)?;
 
         // End result must *not* exist
         if path.exists() {
@@ -132,8 +131,12 @@ impl PathManager {
     /// This returned path can be assumed to:
     /// - Point to a valid, existing file (note that this file could be modified in between this call and its use, check for TOCTOU)
     /// - Hold all the assumptions of [Self::safe_join]
-    pub fn get_bucket_file(&self, bucket: &BucketPath<PathExists>, file: &Path) -> Option<BlobPath<PathExists>> {
-        let path = self.safe_join(&*bucket, file)?;
+    pub fn get_bucket_file(
+        &self,
+        bucket: &BucketPath<PathExists>,
+        file: &Path,
+    ) -> Option<BlobPath<PathExists>> {
+        let path = self.safe_join(bucket, file)?;
 
         // End result must exist
         if !path.exists() {

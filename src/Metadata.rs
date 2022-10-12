@@ -1,9 +1,9 @@
-use serde::Serialize;
-use serde::Deserialize;
 use crate::path::{BlobPath, PathDoesntExist, PathExists};
-use std::os::unix::ffi::OsStrExt;
 use chrono::{DateTime, Utc};
 use rand::Rng;
+use serde::Deserialize;
+use serde::Serialize;
+use std::os::unix::ffi::OsStrExt;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlobMetadata {
@@ -14,7 +14,9 @@ pub struct BlobMetadata {
 
 impl Default for BlobMetadata {
     fn default() -> Self {
-        let key = (0..48).map(|_| rand::thread_rng().gen_range('A'..'Z')).collect();
+        let key = (0..48)
+            .map(|_| rand::thread_rng().gen_range('A'..='Z'))
+            .collect();
         Self {
             content_type: "text".to_string(),
             access_key: key,
@@ -48,7 +50,11 @@ impl MetadataManager {
         Ok(meta)
     }
 
-    pub fn create_metadata(&self, blob_path: &BlobPath<PathDoesntExist>, metadata: &BlobMetadata) -> anyhow::Result<()> {
+    pub fn create_metadata(
+        &self,
+        blob_path: &BlobPath<PathDoesntExist>,
+        metadata: &BlobMetadata,
+    ) -> anyhow::Result<()> {
         let meta_json = serde_json::to_string(&metadata)?;
         assert!(!self.sled.contains_key(blob_path.as_os_str().as_bytes())?);
         self.sled
@@ -56,8 +62,15 @@ impl MetadataManager {
         Ok(())
     }
 
-    pub fn save_metadata(&self, blob_path: &BlobPath<PathExists>, metadata: BlobMetadata) -> anyhow::Result<()> {
-        self.sled.insert(blob_path.as_os_str().as_bytes(), serde_json::to_string(&metadata)?.as_bytes())?;
+    pub fn save_metadata(
+        &self,
+        blob_path: &BlobPath<PathExists>,
+        metadata: BlobMetadata,
+    ) -> anyhow::Result<()> {
+        self.sled.insert(
+            blob_path.as_os_str().as_bytes(),
+            serde_json::to_string(&metadata)?.as_bytes(),
+        )?;
         Ok(())
     }
 }

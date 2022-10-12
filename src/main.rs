@@ -1,8 +1,10 @@
 pub mod bucket;
-pub mod settings;
-pub mod path;
 pub mod metadata;
+pub mod path;
+pub mod settings;
 
+use crate::metadata::MetadataManager;
+use crate::path::PathManager;
 use actix_web::get;
 use actix_web::http::header;
 use actix_web::middleware::{Compress, Logger, NormalizePath, TrailingSlash};
@@ -11,14 +13,12 @@ use actix_web::{web, App, Error as AWError, HttpResponse, HttpServer};
 use dotenv::dotenv;
 use env_logger::Env;
 use futures::StreamExt;
-use serde::{Deserialize};
+use serde::Deserialize;
 use std::fs::File;
 use std::io::Read;
 use std::ops::Deref;
-use std::path::{Path};
+use std::path::Path;
 use tracing::log;
-use crate::metadata::MetadataManager;
-use crate::path::PathManager;
 
 //TODO: bigs todos
 // Add web ui for management
@@ -30,7 +30,6 @@ pub struct FileLocation {
     bucket_name: String,
     file_name: String,
 }
-
 
 #[get("/{bucket_name}/{file_name}")]
 async fn get_file(
@@ -45,7 +44,7 @@ async fn get_file(
 
     let path = match paths.get_bucket_file(&bucket, Path::new(&file.file_name)) {
         Some(path) => path,
-        None => return Ok(HttpResponse::InternalServerError().finish())
+        None => return Ok(HttpResponse::InternalServerError().finish()),
     };
 
     let metadata = match metadata.get_metadata(&path) {
@@ -86,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     let host = settings::get_host_domain();
     tracing::info!("Running on http://{}", host);
 
-    let settings = Data::new(settings::get_app_settings()?);
+    let settings = Data::new(settings::AppSettings::from_env()?);
     let path_manager = Data::new(PathManager::new(Data::clone(&settings)));
     let metadata_manager = Data::new(MetadataManager::new()?);
 

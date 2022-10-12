@@ -30,3 +30,4 @@ tracing-futures = "0.2.5"
 
 sled = "0.34.7"
 anyhow = "1.0.65"
+chrono = { version = "0.4.22", features =["serde"]}

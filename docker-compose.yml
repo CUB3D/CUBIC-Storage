@@ -6,3 +6,9 @@ services:
     ports:
       - "8093:8080"
     restart: unless-stopped
+    environment:
+      STORAGE_ROOT: /storage_root
+    volumes:
+      - storage_data:/storage_root
+volumes:
+  storage_data:

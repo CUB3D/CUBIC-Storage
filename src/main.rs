@@ -1,5 +1,4 @@
 #[deny(clippy::unwrap_used)]
-
 pub mod bucket;
 pub mod bucket_get_file;
 pub mod file_location;

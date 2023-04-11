@@ -1,6 +1,7 @@
+use crate::file_location::FileLocation;
 use crate::metadata::BlobMetadata;
 use crate::metadata::MetadataManager;
-use crate::{AWError, FileLocation, PathManager, StreamExt};
+use crate::{AWError, PathManager, StreamExt};
 use actix_multipart::Multipart;
 use actix_web::delete;
 use actix_web::put;
@@ -15,7 +16,6 @@ use std::io::Read;
 use std::ops::Deref;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
-use tracing::log;
 use walkdir::WalkDir;
 
 #[derive(Deserialize)]
@@ -44,9 +44,7 @@ pub async fn get_bucket_create(
         None => return Ok(HttpResponse::InternalServerError().finish()),
     };
 
-    tokio::fs::create_dir(&*path)
-        .await
-        .expect("Unable to create directory");
+    tokio::fs::create_dir(&*path).await?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -64,24 +62,29 @@ pub async fn bucket_verify(
     };
 
     for e in WalkDir::new(&*path).into_iter().filter_map(|e| e.ok()) {
-        if e.metadata().unwrap().is_file() {
-            println!("{}", e.path().display());
+        let m = match e.metadata() {
+            Ok(e) => e,
+            Err(_e) => {
+                tracing::warn!("Failed to get metadata");
+                return Ok(HttpResponse::InternalServerError().finish());
+            }
+        };
+
+        if m.is_file() {
             let path = e.path();
 
             let mut sha = Sha1::new();
 
-            let mut blob_file = File::open(path).unwrap();
+            let mut blob_file = File::open(path)?;
             let mut content = String::new();
-            blob_file
-                .read_to_string(&mut content)
-                .expect("Failed to read file");
+            blob_file.read_to_string(&mut content)?;
 
             sha.update(content.as_bytes());
 
             let hex_string = format!("{:X}", sha.finalize());
             let path_string = path
                 .to_str()
-                .unwrap()
+                .expect("Failed to convert path to string")
                 .replace(&format!("storage_root/{}/", &file.name), "");
 
             blobs.push(Blob {
@@ -113,13 +116,44 @@ pub async fn put_bucket_upload(
     mut data: Multipart,
     req: HttpRequest,
 ) -> Result<HttpResponse, AWError> {
-    log::warn!("Test");
     let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
         Some(b) => b,
         None => return Ok(HttpResponse::InternalServerError().body("Failed to find bucket")),
     };
 
-    log::warn!("Test1");
+    // Trying to create a file that exists will failm even if it is deleted, so we do an early check here
+    // If the file has been soft-deleted here then something else is being re-uploaded over it so we will remove it so the `create_bucket_file`
+    // below won't fail.
+    // For now if you never want something to be perminently lost, use a unique identifier for the path
+    // TODO: consider having a deleted bucket and when a file is soft deleted move it to a unique path in that bucket and track this history in the metadata
+
+    if let Some(p) = paths.get_bucket_file(&bucket, Path::new(&file.file_name)) {
+        if let Ok(meta) = metadata.get_metadata(&p) {
+            if meta.deletion_date.is_some() {
+                tracing::warn!("Removing file {} as it it being overwritten, use unique paths to avoid this for now", p.deref().display());
+                std::fs::remove_file(p.deref())?;
+                match metadata.remove_metadata(&p) {
+                    Ok(_) => {}
+                    Err(_e) => {
+                        tracing::warn!("Failed to remove metadata for {}", p.deref().display());
+                        return Ok(HttpResponse::InternalServerError()
+                            .body("Failed to create file, already exists"));
+                    }
+                }
+            } else {
+                tracing::warn!(
+                    "Attempt to upload {} over existing file, delete it first",
+                    p.deref().display()
+                );
+            }
+        } else {
+            tracing::warn!("File exists but has no metadata??? {}", p.deref().display());
+            return Ok(
+                HttpResponse::InternalServerError().body("Failed to create file, already exists")
+            );
+        }
+    }
+
     let path = match paths.create_bucket_file(&bucket, Path::new(&file.file_name)) {
         Some(b) => b,
         None => {
@@ -129,9 +163,7 @@ pub async fn put_bucket_upload(
         }
     };
 
-    log::warn!("Test2 path ={:?}", path.deref());
     let mut file = tokio::fs::File::create(path.deref()).await?;
-    log::warn!("Test3");
     let mut meta = BlobMetadata::default();
 
     if let Some(ct) = req.headers().get("X-Blob-Content-Type") {
@@ -168,17 +200,26 @@ pub async fn delete_bucket_remove(
 ) -> Result<HttpResponse, AWError> {
     let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
         Some(b) => b,
-        None => return Ok(HttpResponse::InternalServerError().finish()),
+        None => {
+            tracing::warn!("Failed to find bucket {}", &file.bucket_name);
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
     };
 
     let path = match paths.get_bucket_file(&bucket, Path::new(&file.file_name)) {
         Some(b) => b,
-        None => return Ok(HttpResponse::InternalServerError().finish()),
+        None => {
+            tracing::warn!("Failed to find bucket file {}", &file.file_name);
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
     };
 
     let mut meta = match metadata.get_metadata(&path) {
         Ok(b) => b,
-        Err(_e) => return Ok(HttpResponse::InternalServerError().finish()),
+        Err(_e) => {
+            tracing::warn!("Failed to find metadata {}", &path.deref().display());
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
     };
 
     if meta.deletion_date.is_some() {
@@ -188,7 +229,7 @@ pub async fn delete_bucket_remove(
     // Get the given auth header
     let access_key = match req.headers().get("X-Blob-Access-Key") {
         Some(ct) => ct.to_str().expect("content type str").to_string(),
-        None => return Ok(HttpResponse::InternalServerError().finish()),
+        None => return Ok(HttpResponse::Unauthorized().finish()),
     };
 
     if access_key != meta.access_key {
@@ -198,7 +239,10 @@ pub async fn delete_bucket_remove(
     meta.deletion_date = Some(chrono::Utc::now());
     match metadata.save_metadata(&path, meta) {
         Ok(_) => {}
-        Err(_e) => return Ok(HttpResponse::InternalServerError().finish()),
+        Err(_e) => {
+            tracing::warn!("Failed to save file metadata {}", &path.deref().display());
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
     }
 
     Ok(HttpResponse::Ok().finish())

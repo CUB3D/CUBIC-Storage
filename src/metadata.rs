@@ -50,6 +50,11 @@ impl MetadataManager {
         Ok(meta)
     }
 
+    pub fn remove_metadata(&self, blob_path: &BlobPath<PathExists>) -> anyhow::Result<()> {
+        self.sled.remove(blob_path.as_os_str().as_bytes())?;
+        Ok(())
+    }
+
     pub fn create_metadata(
         &self,
         blob_path: &BlobPath<PathDoesntExist>,

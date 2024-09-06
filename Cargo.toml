@@ -29,5 +29,5 @@ tracing = { version = "0.1.40", features = ["log"] }
 tracing-futures = "0.2.5"
 
 sled = "0.34.7"
-anyhow = "1.0.86"
+anyhow = "1.0.87"
 chrono = { version = "0.4.38", features = ["serde"]}

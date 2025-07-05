@@ -4,7 +4,7 @@ use crate::path::PathManager;
 use actix_web::get;
 use actix_web::http::header;
 use actix_web::web::Data;
-use actix_web::{web, Error as AWError, HttpResponse};
+use actix_web::{Error as AWError, HttpResponse, web};
 use std::fs::File;
 use std::io::Read;
 use std::ops::Deref;

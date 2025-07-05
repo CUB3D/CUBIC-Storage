@@ -15,7 +15,7 @@ pub struct BlobMetadata {
 impl Default for BlobMetadata {
     fn default() -> Self {
         let key = (0..48)
-            .map(|_| rand::thread_rng().gen_range('A'..='Z'))
+            .map(|_| rand::rng().random_range('A'..='Z'))
             .collect();
         Self {
             content_type: "text".to_string(),

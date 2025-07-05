@@ -3,11 +3,11 @@ use crate::metadata::BlobMetadata;
 use crate::metadata::MetadataManager;
 use crate::{AWError, PathManager, StreamExt};
 use actix_multipart::Multipart;
+use actix_web::HttpResponse;
 use actix_web::delete;
 use actix_web::put;
 use actix_web::web::{Data, Path as WebPath};
-use actix_web::HttpResponse;
-use actix_web::{get, HttpRequest};
+use actix_web::{HttpRequest, get};
 use serde::{Deserialize, Serialize};
 use sha1::Digest;
 use sha1::Sha1;
@@ -130,7 +130,10 @@ pub async fn put_bucket_upload(
     if let Some(p) = paths.get_bucket_file(&bucket, Path::new(&file.file_name)) {
         if let Ok(meta) = metadata.get_metadata(&p) {
             if meta.deletion_date.is_some() {
-                tracing::warn!("Removing file {} as it it being overwritten, use unique paths to avoid this for now", p.deref().display());
+                tracing::warn!(
+                    "Removing file {} as it it being overwritten, use unique paths to avoid this for now",
+                    p.deref().display()
+                );
                 std::fs::remove_file(p.deref())?;
                 match metadata.remove_metadata(&p) {
                     Ok(_) => {}
@@ -159,7 +162,7 @@ pub async fn put_bucket_upload(
         None => {
             return Ok(
                 HttpResponse::InternalServerError().body("Failed to create file, already exists")
-            )
+            );
         }
     };
 

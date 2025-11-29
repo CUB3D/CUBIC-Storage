@@ -1,7 +1,7 @@
 version: '3'
 services:
   storage:
-    container_name: Storage
+    container_name: storage
     build: .
     ports:
       - "8093:8080"

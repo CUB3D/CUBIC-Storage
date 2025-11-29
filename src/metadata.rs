@@ -37,6 +37,8 @@ impl MetadataManager {
     }
 
     pub fn get_metadata(&self, blob_path: &BlobPath<PathExists>) -> anyhow::Result<BlobMetadata> {
+        let _span = tracing::info_span!("get_metadata").entered();
+
         let meta = self.sled.get(blob_path.as_os_str().as_bytes())?;
 
         let meta = match meta {
@@ -46,6 +48,8 @@ impl MetadataManager {
             }
             None => BlobMetadata::default(),
         };
+
+        tracing::info!("Got meta: {:?}", meta);
 
         Ok(meta)
     }

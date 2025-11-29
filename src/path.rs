@@ -98,6 +98,8 @@ impl PathManager {
     /// - Point to a valid, existing bucket (note that this bucket could be modified in between this call and its use, check for TOCTOU)
     /// - Hold all the assumptions of [Self::safe_join]
     pub fn get_bucket(&self, bucket_name: &Path) -> Option<BucketPath<PathExists>> {
+        let _span = tracing::info_span!("bucket_get").entered();
+        
         let path = self.safe_join(&self.get_root(), bucket_name)?;
 
         // End result must exist

@@ -39,6 +39,8 @@ pub async fn get_bucket_create(
     paths: Data<PathManager>,
     file: WebPath<BucketLocation>,
 ) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_create").entered();
+
     let path = match paths.create_bucket(Path::new(&file.name)) {
         Some(b) => b,
         None => return Ok(HttpResponse::InternalServerError().finish()),
@@ -54,6 +56,8 @@ pub async fn bucket_verify(
     paths: Data<PathManager>,
     file: WebPath<BucketLocation>,
 ) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_verify").entered();
+
     let mut blobs = Vec::new();
 
     let path = match paths.get_bucket(Path::new(&file.name)) {
@@ -116,6 +120,8 @@ pub async fn put_bucket_upload(
     mut data: Multipart,
     req: HttpRequest,
 ) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_upload").entered();
+
     let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
         Some(b) => b,
         None => return Ok(HttpResponse::InternalServerError().body("Failed to find bucket")),
@@ -187,7 +193,10 @@ pub async fn put_bucket_upload(
 
     match metadata.create_metadata(&path, &meta) {
         Ok(_) => {}
-        Err(_e) => return Ok(HttpResponse::InternalServerError().finish()),
+        Err(_e) => {
+            std::fs::remove_file(path.deref())?;
+            return Ok(HttpResponse::InternalServerError().finish())
+        },
     }
     let res = FileUploadResult::new(meta.access_key);
 
@@ -201,6 +210,8 @@ pub async fn delete_bucket_remove(
     file: WebPath<FileLocation>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_delete").entered();
+
     let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
         Some(b) => b,
         None => {
@@ -231,11 +242,13 @@ pub async fn delete_bucket_remove(
 
     // Get the given auth header
     let access_key = match req.headers().get("X-Blob-Access-Key") {
-        Some(ct) => ct.to_str().expect("content type str").to_string(),
+        Some(ct) => ct.to_str().expect("Access key").to_string(),
         None => return Ok(HttpResponse::Unauthorized().finish()),
     };
 
     if access_key != meta.access_key {
+        tracing::info!("Access key, got {}, expected {}", access_key, meta.access_key);
+
         return Ok(HttpResponse::Unauthorized().finish());
     }
 

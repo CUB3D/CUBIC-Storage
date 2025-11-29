@@ -10,6 +10,8 @@ pub struct BlobMetadata {
     pub content_type: String,
     pub access_key: String,
     pub deletion_date: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 impl Default for BlobMetadata {
@@ -21,6 +23,7 @@ impl Default for BlobMetadata {
             content_type: "text".to_string(),
             access_key: key,
             deletion_date: None,
+            created_at: Some(Utc::now()),
         }
     }
 }

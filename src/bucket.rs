@@ -15,6 +15,7 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::Deref;
 use std::path::Path;
+use chrono::{DateTime, Utc};
 use tokio::io::AsyncWriteExt;
 use walkdir::WalkDir;
 use crate::settings::AppSettings;
@@ -51,6 +52,8 @@ pub async fn get_bucket_create(
         return Ok(HttpResponse::BadRequest().finish());
     }
     
+    let _span = tracing::info_span!("bucket_create").entered();
+
     let path = match paths.create_bucket(Path::new(&file.name)) {
         Some(b) => b,
         None => return Ok(HttpResponse::InternalServerError().finish()),
@@ -66,6 +69,8 @@ pub async fn bucket_verify(
     paths: Data<PathManager>,
     file: WebPath<BucketLocation>,
 ) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_verify").entered();
+
     let mut blobs = Vec::new();
 
     let path = match paths.get_bucket(Path::new(&file.name)) {
@@ -109,6 +114,50 @@ pub async fn bucket_verify(
     Ok(HttpResponse::Ok().json(Bucket { blobs }))
 }
 
+#[derive(Serialize, Debug)]
+pub struct BucketDetails {
+    pub content_type: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[get("/api/bucket/{bucket_name}/{file_name}/details")]
+pub async fn get_bucket_details(
+    paths: Data<PathManager>,
+    metadata: Data<MetadataManager>,
+    file: WebPath<FileLocation>,
+) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_details").entered();
+
+    let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
+        Some(b) => b,
+        None => {
+            tracing::warn!("Failed to find bucket {}", &file.bucket_name);
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
+    };
+
+    let path = match paths.get_bucket_file(&bucket, Path::new(&file.file_name)) {
+        Some(b) => b,
+        None => {
+            tracing::warn!("Failed to find bucket file {}", &file.file_name);
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
+    };
+
+    let meta = match metadata.get_metadata(&path) {
+        Ok(b) => b,
+        Err(_e) => {
+            tracing::warn!("Failed to find metadata {}", &path.deref().display());
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
+    };
+
+    Ok(HttpResponse::Ok().json(BucketDetails {
+        content_type: meta.content_type,
+        created_at: meta.created_at.unwrap_or_else(Utc::now),
+    }))
+}
+
 #[derive(Serialize)]
 struct FileUploadResult {
     access_key: String,
@@ -135,6 +184,8 @@ pub async fn put_bucket_upload(
     auth: Query<BucketUploadQuery>,
     settings: Data<AppSettings>,
 ) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_upload").entered();
+
     let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
         Some(b) => b,
         None => return Ok(HttpResponse::InternalServerError().body("Failed to find bucket")),
@@ -201,6 +252,11 @@ pub async fn put_bucket_upload(
         meta.content_type = ct.to_str().expect("content type str").to_string();
     }
 
+    // Static access key
+    if let Some(ct) = req.headers().get("X-Blob-Access-Key") {
+        meta.access_key = ct.to_str().expect("Access key").to_string();
+    };
+
     tracing::info!("Headers = {:?}", req.headers());
 
     while let Some(item) = data.next().await {
@@ -215,7 +271,10 @@ pub async fn put_bucket_upload(
 
     match metadata.create_metadata(&path, &meta) {
         Ok(_) => {}
-        Err(_e) => return Ok(HttpResponse::InternalServerError().finish()),
+        Err(_e) => {
+            std::fs::remove_file(path.deref())?;
+            return Ok(HttpResponse::InternalServerError().finish())
+        },
     }
     let res = FileUploadResult::new(meta.access_key);
 
@@ -229,6 +288,8 @@ pub async fn delete_bucket_remove(
     file: WebPath<FileLocation>,
     req: HttpRequest,
 ) -> Result<HttpResponse, AWError> {
+    let _span = tracing::info_span!("bucket_delete").entered();
+
     let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
         Some(b) => b,
         None => {
@@ -254,16 +315,21 @@ pub async fn delete_bucket_remove(
     };
 
     if meta.deletion_date.is_some() {
+        tracing::warn!("Already removed");
         return Ok(HttpResponse::BadRequest().body("Already deleted"));
     }
 
     // Get the given auth header
     let access_key = match req.headers().get("X-Blob-Access-Key") {
-        Some(ct) => ct.to_str().expect("content type str").to_string(),
-        None => return Ok(HttpResponse::Unauthorized().finish()),
+        Some(ct) => ct.to_str().expect("Access key").to_string(),
+        None => {
+            tracing::warn!("No access key");
+            return Ok(HttpResponse::Unauthorized().finish())
+        },
     };
 
     if access_key != meta.access_key {
+        tracing::info!("Access key, got {}, expected {}", access_key, meta.access_key);
         return Ok(HttpResponse::Unauthorized().finish());
     }
 

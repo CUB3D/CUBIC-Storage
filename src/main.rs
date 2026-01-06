@@ -50,6 +50,7 @@ async fn main() -> anyhow::Result<()> {
             .service(bucket::put_bucket_upload)
             .service(bucket::bucket_verify)
             .service(bucket::delete_bucket_remove)
+            .service(bucket::get_bucket_details)
     })
     .bind(host)?
     .run()

@@ -10,6 +10,8 @@ pub struct BlobMetadata {
     pub content_type: String,
     pub access_key: String,
     pub deletion_date: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 impl Default for BlobMetadata {
@@ -21,6 +23,7 @@ impl Default for BlobMetadata {
             content_type: "text".to_string(),
             access_key: key,
             deletion_date: None,
+            created_at: Some(Utc::now()),
         }
     }
 }
@@ -37,6 +40,8 @@ impl MetadataManager {
     }
 
     pub fn get_metadata(&self, blob_path: &BlobPath<PathExists>) -> anyhow::Result<BlobMetadata> {
+        let _span = tracing::info_span!("get_metadata").entered();
+
         let meta = self.sled.get(blob_path.as_os_str().as_bytes())?;
 
         let meta = match meta {
@@ -46,6 +51,8 @@ impl MetadataManager {
             }
             None => BlobMetadata::default(),
         };
+
+        tracing::info!("Got meta: {:?}", meta);
 
         Ok(meta)
     }

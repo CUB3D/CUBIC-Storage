@@ -112,7 +112,7 @@ impl PathManager {
     /// This returned path can be assumed to:
     /// - Point to a non existent, file, within a valid bucket
     /// - Hold all the assumptions of [Self::safe_join]
-    pub fn create_bucket_file(
+    pub fn create_bucket_path(
         &self,
         bucket: &BucketPath<PathExists>,
         file: &Path,

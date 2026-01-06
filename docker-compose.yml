@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     environment:
       STORAGE_ROOT: /storage_root
+      BUCKET_CREATE_KEY: <KEY_HERE>
+      BUCKET_UPLOAD_KEY: <KEY_HERE>
     volumes:
       - storage_data:/storage_root
 volumes:

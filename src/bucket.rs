@@ -6,7 +6,7 @@ use actix_multipart::Multipart;
 use actix_web::HttpResponse;
 use actix_web::delete;
 use actix_web::put;
-use actix_web::web::{Data, Path as WebPath};
+use actix_web::web::{Data, Path as WebPath, Query};
 use actix_web::{HttpRequest, get};
 use serde::{Deserialize, Serialize};
 use sha1::Digest;
@@ -17,6 +17,7 @@ use std::ops::Deref;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
 use walkdir::WalkDir;
+use crate::settings::AppSettings;
 
 #[derive(Deserialize)]
 pub struct BucketLocation {
@@ -34,11 +35,22 @@ pub struct Blob {
     blob_sha1: String,
 }
 
+#[derive(Deserialize)]
+pub struct CreateBucketQuery {
+    auth: String,
+}
+
 #[get("/api/bucket/{name}/create")]
 pub async fn get_bucket_create(
     paths: Data<PathManager>,
     file: WebPath<BucketLocation>,
+    auth: Query<CreateBucketQuery>,
+    settings: Data<AppSettings>,
 ) -> Result<HttpResponse, AWError> {
+    if auth.auth != settings.bucket_creation_key {
+        return Ok(HttpResponse::BadRequest().finish());
+    }
+    
     let path = match paths.create_bucket(Path::new(&file.name)) {
         Some(b) => b,
         None => return Ok(HttpResponse::InternalServerError().finish()),
@@ -108,6 +120,11 @@ impl FileUploadResult {
     }
 }
 
+#[derive(Deserialize)]
+pub struct BucketUploadQuery {
+    auth: Option<String>,
+}
+
 #[put("/api/bucket/{bucket_name}/{file_name}/upload")]
 pub async fn put_bucket_upload(
     paths: Data<PathManager>,
@@ -115,6 +132,8 @@ pub async fn put_bucket_upload(
     file: WebPath<FileLocation>,
     mut data: Multipart,
     req: HttpRequest,
+    auth: Query<BucketUploadQuery>,
+    settings: Data<AppSettings>,
 ) -> Result<HttpResponse, AWError> {
     let bucket = match paths.get_bucket(Path::new(&file.bucket_name)) {
         Some(b) => b,
@@ -155,9 +174,18 @@ pub async fn put_bucket_upload(
                 HttpResponse::InternalServerError().body("Failed to create file, already exists")
             );
         }
+    } else {
+        // New files must have an upload key which is correct, existing files are checked by anti-overwrite, delete requires blob auth
+        if let Some(auth) = &auth.auth {
+            if *auth != settings.bucket_upload_key {
+                return Ok(HttpResponse::BadRequest().finish());
+            }
+        } else {
+            return Ok(HttpResponse::BadRequest().finish());
+        }
     }
 
-    let path = match paths.create_bucket_file(&bucket, Path::new(&file.file_name)) {
+    let path = match paths.create_bucket_path(&bucket, Path::new(&file.file_name)) {
         Some(b) => b,
         None => {
             return Ok(

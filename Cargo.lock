@@ -505,7 +505,7 @@ dependencies = [
 
 [[package]]
 name = "cubic_storage"
-version = "0.1.0"
+version = "0.1.5"
 dependencies = [
  "actix-multipart",
  "actix-rt",

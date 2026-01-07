@@ -13,6 +13,7 @@ pub struct BlobMetadata {
     #[serde(default)]
     pub created_at: Option<DateTime<Utc>>,
 
+    #[serde(default)]
     pub download_count: u32,
 }
 

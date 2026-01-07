@@ -118,6 +118,7 @@ pub async fn bucket_verify(
 pub struct BucketDetails {
     pub content_type: String,
     pub created_at: DateTime<Utc>,
+    pub download_count: u32,
 }
 
 #[get("/api/bucket/{bucket_name}/{file_name}/details")]
@@ -155,6 +156,7 @@ pub async fn get_bucket_details(
     Ok(HttpResponse::Ok().json(BucketDetails {
         content_type: meta.content_type,
         created_at: meta.created_at.unwrap_or_else(Utc::now),
+        download_count: meta.download_count,
     }))
 }
 
@@ -333,8 +335,8 @@ pub async fn delete_bucket_remove(
         return Ok(HttpResponse::Unauthorized().finish());
     }
 
-    meta.deletion_date = Some(chrono::Utc::now());
-    match metadata.save_metadata(&path, meta) {
+    meta.deletion_date = Some(Utc::now());
+    match metadata.save_metadata(&path, &meta) {
         Ok(_) => {}
         Err(_e) => {
             tracing::warn!("Failed to save file metadata {}", &path.deref().display());

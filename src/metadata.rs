@@ -12,6 +12,8 @@ pub struct BlobMetadata {
     pub deletion_date: Option<DateTime<Utc>>,
     #[serde(default)]
     pub created_at: Option<DateTime<Utc>>,
+
+    pub download_count: u32,
 }
 
 impl Default for BlobMetadata {
@@ -24,6 +26,7 @@ impl Default for BlobMetadata {
             access_key: key,
             deletion_date: None,
             created_at: Some(Utc::now()),
+            download_count: 0,
         }
     }
 }
@@ -77,7 +80,7 @@ impl MetadataManager {
     pub fn save_metadata(
         &self,
         blob_path: &BlobPath<PathExists>,
-        metadata: BlobMetadata,
+        metadata: &BlobMetadata,
     ) -> anyhow::Result<()> {
         self.sled.insert(
             blob_path.as_os_str().as_bytes(),

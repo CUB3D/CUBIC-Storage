@@ -6,18 +6,18 @@ pub mod metadata;
 pub mod path;
 pub mod settings;
 
+use actix_cors::Cors;
 use crate::metadata::MetadataManager;
 use crate::path::PathManager;
 use actix_web::middleware::{Compress, Logger, NormalizePath, TrailingSlash};
 use actix_web::web::Data;
-use actix_web::{App, Error as AWError, HttpResponse, HttpServer, web};
+use actix_web::{App, Error as AWError, HttpResponse, HttpServer, web, http};
 use dotenv::dotenv;
 use env_logger::Env;
 use futures::StreamExt;
 
 //TODO: bigs todos
 // Add web ui for management
-// add system for securing buckets
 // add apis for getting state of buckets
 
 async fn root_handler() -> Result<HttpResponse, AWError> {
@@ -37,7 +37,16 @@ async fn main() -> anyhow::Result<()> {
     let metadata_manager = Data::new(MetadataManager::new()?);
 
     let _ = HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allowed_methods(vec!["GET", "POST", "PUT", "DELETE"])
+            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+            .allowed_header("X-Blob-Content-Type")
+            .allowed_header("X-Blob-Access-Key")
+            .max_age(3600);
+
         App::new()
+            .wrap(cors)
             .wrap(Logger::default())
             .wrap(Compress::default())
             .wrap(NormalizePath::new(TrailingSlash::MergeOnly))

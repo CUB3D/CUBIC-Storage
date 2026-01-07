@@ -33,7 +33,7 @@ async fn get_file(
         }
     };
 
-    let metadata = match metadata.get_metadata(&path) {
+    let mut file_meta = match metadata.get_metadata(&path) {
         Ok(m) => m,
         Err(_e) => {
             tracing::warn!("Failed to find metadata {}", &path.deref().display());
@@ -41,7 +41,13 @@ async fn get_file(
         }
     };
 
-    if metadata.deletion_date.is_some() {
+    file_meta.download_count += 1;
+
+    if let Err(e) = metadata.save_metadata(&path, &file_meta) {
+        tracing::warn!("Failed to save metadata {}", e);
+    }
+
+    if file_meta.deletion_date.is_some() {
         log::warn!("Attempt to access soft-deleted file");
         return Ok(HttpResponse::NotFound().finish());
     }
@@ -53,7 +59,7 @@ async fn get_file(
         file.read_to_end(&mut content)?;
 
         Ok(HttpResponse::Ok()
-            .append_header((header::CONTENT_TYPE, metadata.content_type))
+            .append_header((header::CONTENT_TYPE, file_meta.content_type))
             .body(content))
     } else {
         Ok(HttpResponse::NotFound().finish())

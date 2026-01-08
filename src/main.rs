@@ -6,12 +6,12 @@ pub mod metadata;
 pub mod path;
 pub mod settings;
 
-use actix_cors::Cors;
 use crate::metadata::MetadataManager;
 use crate::path::PathManager;
+use actix_cors::Cors;
 use actix_web::middleware::{Compress, Logger, NormalizePath, TrailingSlash};
 use actix_web::web::Data;
-use actix_web::{App, Error as AWError, HttpResponse, HttpServer, web, http};
+use actix_web::{App, Error as AWError, HttpResponse, HttpServer, http, web};
 use dotenv::dotenv;
 use env_logger::Env;
 use futures::StreamExt;

@@ -1,6 +1,7 @@
 use crate::file_location::FileLocation;
 use crate::metadata::BlobMetadata;
 use crate::metadata::MetadataManager;
+use crate::settings::AppSettings;
 use crate::{AWError, PathManager, StreamExt};
 use actix_multipart::Multipart;
 use actix_web::HttpResponse;
@@ -8,6 +9,7 @@ use actix_web::delete;
 use actix_web::put;
 use actix_web::web::{Data, Path as WebPath, Query};
 use actix_web::{HttpRequest, get};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha1::Digest;
 use sha1::Sha1;
@@ -15,10 +17,8 @@ use std::fs::File;
 use std::io::Read;
 use std::ops::Deref;
 use std::path::Path;
-use chrono::{DateTime, Utc};
 use tokio::io::AsyncWriteExt;
 use walkdir::WalkDir;
-use crate::settings::AppSettings;
 
 #[derive(Deserialize)]
 pub struct BucketLocation {
@@ -51,7 +51,7 @@ pub async fn get_bucket_create(
     if auth.auth != settings.bucket_creation_key {
         return Ok(HttpResponse::BadRequest().finish());
     }
-    
+
     let _span = tracing::info_span!("bucket_create").entered();
 
     let path = match paths.create_bucket(Path::new(&file.name)) {
@@ -275,8 +275,8 @@ pub async fn put_bucket_upload(
         Ok(_) => {}
         Err(_e) => {
             std::fs::remove_file(path.deref())?;
-            return Ok(HttpResponse::InternalServerError().finish())
-        },
+            return Ok(HttpResponse::InternalServerError().finish());
+        }
     }
     let res = FileUploadResult::new(meta.access_key);
 
@@ -326,12 +326,16 @@ pub async fn delete_bucket_remove(
         Some(ct) => ct.to_str().expect("Access key").to_string(),
         None => {
             tracing::warn!("No access key");
-            return Ok(HttpResponse::Unauthorized().finish())
-        },
+            return Ok(HttpResponse::Unauthorized().finish());
+        }
     };
 
     if access_key != meta.access_key {
-        tracing::info!("Access key, got {}, expected {}", access_key, meta.access_key);
+        tracing::info!(
+            "Access key, got {}, expected {}",
+            access_key,
+            meta.access_key
+        );
         return Ok(HttpResponse::Unauthorized().finish());
     }
 

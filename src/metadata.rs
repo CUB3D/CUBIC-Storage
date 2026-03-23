@@ -43,7 +43,7 @@ impl MetadataManager {
         Ok(Self { sled })
     }
 
-    pub fn get_metadata(&self, blob_path: &BlobPath<PathExists>) -> anyhow::Result<BlobMetadata> {
+    pub fn get_metadata(&self, blob_path: &BlobPath<PathExists>, create_if_missing: bool) -> anyhow::Result<BlobMetadata> {
         let _span = tracing::info_span!("get_metadata").entered();
 
         let meta = self.sled.get(blob_path.as_os_str().as_bytes())?;
@@ -53,7 +53,13 @@ impl MetadataManager {
                 let data_str = String::from_utf8(data.to_vec())?;
                 serde_json::from_str(&data_str)?
             }
-            None => BlobMetadata::default(),
+            None => {
+                if create_if_missing {
+                    BlobMetadata::default()
+                } else {
+                    return Err(anyhow::anyhow!("Tried to get metadata for missing blob, but can't create"));
+                }
+            },
         };
 
         tracing::info!("Got meta: {:?}", meta);

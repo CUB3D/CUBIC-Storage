@@ -18,6 +18,7 @@ use std::io::Read;
 use std::ops::Deref;
 use std::path::Path;
 use tokio::io::AsyncWriteExt;
+use tracing::warn;
 use walkdir::WalkDir;
 
 #[derive(Deserialize)]
@@ -145,7 +146,7 @@ pub async fn get_bucket_details(
         }
     };
 
-    let meta = match metadata.get_metadata(&path) {
+    let meta = match metadata.get_metadata(&path, false) {
         Ok(b) => b,
         Err(_e) => {
             tracing::warn!("Failed to find metadata {}", &path.deref().display());
@@ -193,14 +194,14 @@ pub async fn put_bucket_upload(
         None => return Ok(HttpResponse::InternalServerError().body("Failed to find bucket")),
     };
 
-    // Trying to create a file that exists will failm even if it is deleted, so we do an early check here
+    // Trying to create a file that exists will fail even if it is deleted, so we do an early check here
     // If the file has been soft-deleted here then something else is being re-uploaded over it so we will remove it so the `create_bucket_file`
     // below won't fail.
     // For now if you never want something to be perminently lost, use a unique identifier for the path
     // TODO: consider having a deleted bucket and when a file is soft deleted move it to a unique path in that bucket and track this history in the metadata
 
     if let Some(p) = paths.get_bucket_file(&bucket, Path::new(&file.file_name)) {
-        if let Ok(meta) = metadata.get_metadata(&p) {
+        if let Ok(meta) = metadata.get_metadata(&p, true) {
             if meta.deletion_date.is_some() {
                 tracing::warn!(
                     "Removing file {} as it it being overwritten, use unique paths to avoid this for now",
@@ -231,10 +232,12 @@ pub async fn put_bucket_upload(
         // New files must have an upload key which is correct, existing files are checked by anti-overwrite, delete requires blob auth
         if let Some(auth) = &auth.auth {
             if *auth != settings.bucket_upload_key {
-                return Ok(HttpResponse::BadRequest().finish());
+                warn!("Invalid bucket upload key");
+                return Ok(HttpResponse::BadRequest().body("Auth"));
             }
         } else {
-            return Ok(HttpResponse::BadRequest().finish());
+            warn!("Missing auth key");
+            return Ok(HttpResponse::BadRequest().body("Auth"));
         }
     }
 
@@ -308,7 +311,7 @@ pub async fn delete_bucket_remove(
         }
     };
 
-    let mut meta = match metadata.get_metadata(&path) {
+    let mut meta = match metadata.get_metadata(&path, false) {
         Ok(b) => b,
         Err(_e) => {
             tracing::warn!("Failed to find metadata {}", &path.deref().display());
@@ -348,5 +351,5 @@ pub async fn delete_bucket_remove(
         }
     }
 
-    Ok(HttpResponse::Ok().finish())
+    Ok(HttpResponse::Ok().body("Bucket deleted".to_string()))
 }
